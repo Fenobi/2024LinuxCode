@@ -7,10 +7,12 @@
 #include <cstring>
 #include <strings.h>
 #include <cstdlib>
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+
 
 namespace Client
 {
@@ -47,35 +49,50 @@ namespace Client
             
         }
 
+        static void* readMessage(void *args)
+        {
+            int sockfd = *(static_cast<int *>(args));
+            pthread_detach(pthread_self());
+            while (true)
+            {
+                char buffer[1024];
+                struct sockaddr_in temp;
+                socklen_t temp_len = sizeof temp;
+                size_t n = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0,
+                                    (struct sockaddr *)&temp, &temp_len);
+                if (n >= 0)
+                {
+                    buffer[n] = 0;
+                }
+                cout << buffer << endl;
+            }
+            return nullptr;
+        }
+
         void run()
         {
+            pthread_create(&_reader, nullptr, readMessage, (void *)&_sockfd);
+
             struct sockaddr_in server;
             memset(&server, 0, sizeof server);
-            server.sin_family - AF_INET;
+            server.sin_family = AF_INET;
             server.sin_addr.s_addr = inet_addr(_serverip.c_str());
             server.sin_port = htons(_serverport);
 
             string message;
-            char buffer[1024];
+            char cmdline[1024];
             while (!_quit)
             {
-                 cout << "Please Enter# ";
+                fprintf(stderr, "Enter# ");
+                fflush(stderr);
                 // cin >> message;
 
-                fgets(buffer, sizeof(buffer), stdin);
-                message = buffer;
+                fgets(cmdline, sizeof(cmdline), stdin);
+                cmdline[strlen(cmdline) - 1] = 0;
+                message = cmdline;
 
                 sendto(_sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&server, sizeof server);
-                char buffer[1024];
-                struct sockaddr_in temp;
-                socklen_t temp_len = sizeof temp;
-                size_t n = recvfrom(_sockfd, buffer, sizeof(buffer) - 1, 0, 
-                (struct sockaddr *)&temp, &temp_len);
-                if(n > 0)
-                {
-                    buffer[n] = 0;
-                }
-                cout <<  buffer << endl;
+               
             }
         }
 
@@ -88,5 +105,8 @@ namespace Client
         string _serverip;
         uint16_t _serverport;
         bool _quit;
+
+        pthread_t _reader;
+        pthread_t _writer;
     };
 }

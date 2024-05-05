@@ -31,7 +31,8 @@ namespace Server
     class udpServer
     {
     public:
-        udpServer(const func_t &callback, const uint16_t &port, const string ip = defaultIp) : _callback(callback), _port(port), _ip(ip), _sockfd(-1)
+        udpServer(const func_t& callback, const uint16_t& port, const string ip = defaultIp)
+            : _callback(callback), _port(port), _ip(ip), _sockfd(-1)
         {
         }
         void initServer()
@@ -45,7 +46,7 @@ namespace Server
             }
             cout << "socker success: " << " : " << _sockfd << endl;
 
-            // 2.绑定port，ip
+            // 2.绑定port,ip
             // 未来服务器要明确的port，不能随意改变
             struct sockaddr_in local; // 定义了一个变量，栈,用户
             bzero(&local, sizeof(local));

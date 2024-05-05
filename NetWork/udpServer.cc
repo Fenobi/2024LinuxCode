@@ -1,4 +1,5 @@
 #include "udpServer.hpp"
+#include "onlineUser.hpp"
 #include <memory>
 #include <fstream>
 #include <unordered_map>
@@ -84,7 +85,7 @@ static void debugPrint()
 //     0, (struct sockaddr*)&client, sizeof client);
 // }
 
-void handlerMessage(int sockfd, string clientip, uint16_t clientport, string cmd)
+void execCommand(int sockfd, string clientip, uint16_t clientport, string cmd)
 {
     //1.cmd解析，ls -a -l
     //2.如果必要，可能需要fork,exec*
@@ -92,7 +93,7 @@ void handlerMessage(int sockfd, string clientip, uint16_t clientport, string cmd
     if (cmd.find("rm") != string::npos || cmd.find("mv") != string::npos || cmd.find("rmdir") != string::npos)
     {
         cerr << clientip << ":" << clientport << "正在做一个非法的操作：" << cmd << endl;
-        
+        return;
     }
 
     string response;
@@ -118,6 +119,37 @@ void handlerMessage(int sockfd, string clientip, uint16_t clientport, string cmd
            0, (struct sockaddr *)&client, sizeof client);
 }
 
+OnlineUser onlineuser;
+
+void routeMessage(int sockfd, string clientip, uint16_t clientport, string message)
+{
+    if(message == "online")
+        onlineuser.addUser(clientip, clientport);
+    if (message == "offline")
+        onlineuser.delUser(clientip, clientport);
+    
+    if (onlineuser.isOnline(clientip, clientport))
+    {
+        // 消息的路由
+        onlineuser.broadcaseMessage(sockfd, clientip, clientport, message);
+    }
+    else
+    {
+        // 开始返回
+        struct sockaddr_in client;
+        bzero(&client, sizeof(client));
+
+        client.sin_family = AF_INET;
+        client.sin_port = htons(clientport);
+        client.sin_addr.s_addr = inet_addr(clientip.c_str());
+
+        string response = "你还没有上线！请先上线，运行online";
+
+        sendto(sockfd, response.c_str(), response.size(),
+                0, (struct sockaddr *)&client, sizeof client);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     if(argc != 2)
@@ -132,10 +164,12 @@ int main(int argc, char *argv[])
     initDict();
     //debugPrint();
 
-    std::unique_ptr<udpServer> usvr(new udpServer(handlerMessage, port));
+    //std::unique_ptr<udpServer> user(new udpServer(handlerMessage, port));
+    //std::unique_ptr<udpServer> user(new udpServer(execCommand, port));
+    std::unique_ptr<udpServer> user(new udpServer(routeMessage, port));
 
-    usvr->initServer();
-    usvr->start();
+    user->initServer();
+    user->start();
 
     return 0;
 }

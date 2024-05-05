@@ -4,9 +4,9 @@ cc=g++
 all:udpClient udpServer
 
 udpClient:udpClient.cc
-	$(cc) -o $@ $^ -std=c++11
+	$(cc) -o $@ $^ -std=c++11 -lpthread
 udpServer:udpServer.cc
-	$(cc) -o $@ $^ -std=c++11
+	$(cc) -o $@ $^ -std=c++11 -lpthread
 
 .PHONT:clean
 clean:
