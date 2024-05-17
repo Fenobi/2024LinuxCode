@@ -11,7 +11,7 @@ static void Usage(string proc)
 
 int main(int argc, char *argv[])
 {
-    if (argc != 3)
+    if (argc != 2)
     {
         Usage(argv[1]);
         exit(USAGE_ERR);
