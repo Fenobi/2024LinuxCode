@@ -11,10 +11,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <functional>
 
 #include "log.hpp"
-#include "ThreadPool.hpp"
-#include "Task.hpp"
+#include "Protocol.hpp"
 
 namespace server
 {
@@ -26,18 +26,44 @@ namespace server
 
     static const uint16_t gport = 8080;
     static const int gbacklog = 5;
-    class TcpServer;
 
-    class ThreadData
+    // const Request &req:输入型
+    // Response &resq:输出型
+    typedef std::function<bool(const Request &req, Response &resp)> func_t;
+
+    //保证解耦
+    void handlerEntery(int sock, func_t func)
     {
-    public:
-        ThreadData(TcpServer* self, int sock)
-            : _self(self), _sock(sock)
-        {}
-    public:
-        TcpServer* _self;
-        int _sock;
-    };
+        //一、读取 "content_len"\r\n"x op y"\r\n
+        //1.如何保证读取的是【一个】完整数据
+        std::string req_text;
+        if(!recvRequest(sock, &req_text))
+            return;
+        //2、我们保证，我们req_text里面一定是个完整的请求
+
+        std::string req_str;
+
+        // 二、对请求Request，反序列化
+        // 1、得到一个结构化的请求对象
+        Request req;
+        if(!req.deserialize(req_str))
+            return;
+        
+        // 三、计算处理，req,x req,op req,y
+        // 1.得到一个结构化的响应
+        Response resp;
+        func(req, resp);// req的处理结果全部放入resp中，回调
+
+        // 四、对响应Response，进行序列化
+        // 1.得到一个“字符串”
+        std::string resp_str;
+        resp.serialize(&resp_str);
+        // 五、发送响应
+        //1、构建成为一个完整的报文
+        std::string send_string = enLength(resp_str);
+        send(sock, send_string.c_str(), send_string.size(), 0);//发送有问题
+
+    }
 
     class TcpServer
     {
@@ -82,12 +108,8 @@ namespace server
 
         }
 
-        void start()
+        void start(func_t func)
         {
-            //线程池初始化
-            ThreadPool<Task>::getInstance()->run();
-            logMessage(NORMAL, "Thread init success");
-            //signal(SIGCHLD, SIG_IGN);
             for (;;)
             {
                 //4.server获取新链接
@@ -101,51 +123,27 @@ namespace server
                     continue;
                 }
                 logMessage(NORMAL, "accept a new link success,get new sock: %d", sock);
-                // //5.这里就是一个sock，未来通信就用这个sock，面向字节流的，后续全部都是文件操作
-                // //version 1
-                // serviceIO(sock);
-                // close(sock);//对于一个使用完毕的sock，我们要关闭这个sock，不然会导致,文件描述符泄露
-
-                // //version 2,多进程版
-                // pid_t id = fork();
-                // if (id == 0)
-                // {
-                //     close(_listensock);
-                //     // if (fork() > 0)exit(0);
-                //     serviceIO(sock);
-                //     close(sock);
-                //     exit(0);
-                // }
-                // close(sock);
-                // // //father
-                // // pid_t ret = waitpid(id, nullptr, 0);
-                // // if (ret > 0)
-                // // {
-                // //     std::cout << "wait success: " << ret << std::endl;
-                // // }
-
-                // //version 3多线程版
-                // pthread_t tid;
-                // ThreadData* td = new ThreadData(this, sock);
-                // pthread_create(&tid, nullptr, threadRoutine, td);
-
-                // // pthread_join(tid, nullptr);
-
-                //version 4线程池版
-                
-                ThreadPool<Task>::getInstance()->push(Task(sock, serviceIO));
-
+                //5.这里就是一个sock，未来通信就用这个sock，面向字节流的，后续全部都是文件操作
+         
+                //version 2,多进程版
+                pid_t id = fork();
+                if (id == 0)
+                {
+                    close(_listensock);
+                    // if (fork() > 0)exit(0);
+                    //serviceIO(sock);
+                    handlerEntery(sock,func);
+                    close(sock);
+                    exit(0);
+                }
+                close(sock);
+                //father
+                pid_t ret = waitpid(id, nullptr, 0);
+                if (ret > 0)
+                {
+                    logMessage(NORMAL, "wait child success");
+                }
             }
-        }
-
-        static void* threadRoutine(void* args)
-        {
-            pthread_detach(pthread_self());
-            ThreadData* td = static_cast<ThreadData*>(args);
-            serviceIO(td->_sock);
-            close(td->_sock);
-            delete td;
-            return nullptr;
         }
 
         ~TcpServer() {}
