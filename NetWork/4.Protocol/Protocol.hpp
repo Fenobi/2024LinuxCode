@@ -5,6 +5,7 @@
 #include <string>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <vector>
 
 #define SEP " "
 #define SEP_LEN strlen(SEP)
@@ -29,9 +30,15 @@ std::string enLength(const std::string &text)
     return send_string;
 }
 
-std::string deLength(const std::string &package)
+bool deLength(const std::string &package,std::string *text)
 {
-
+    auto pos = package.find(LINE_SEP);
+    if(pos == std::string::npos)
+        return false;
+    std::string text_len_string = package.substr(0, pos);
+    int text_len = std::stoi(text_len_string);
+    *text = package.substr(pos + LINE_SEP_LEN, text_len);
+    return true;
 }
 
 class Request
@@ -53,8 +60,6 @@ public:
         *out += _op;
         *out += SEP;
         *out += y_string;
-        *out += LINE_SEP;
-
         return true;
     }
     bool deserialize(const std::string &in)
@@ -64,7 +69,7 @@ public:
 
         if(left == std::string::npos || right==std::string::npos) return false;
         if(right==left) return false;
-        if (right - (left + SEP_LEN)) return false;
+        if (right - (left + SEP_LEN) !=1) return false;
         std::string x_string = in.substr(0, left); //[0,2) abcd->ab start,start-end
         std::string y_string = in.substr(right + SEP_LEN);
 
@@ -130,9 +135,8 @@ public:
 };
 
 //"content_len"\r\n "x op y"\r\n 
-bool recvRequest(int sock, std::string *text)
+bool recvPackage(int sock, std::string &inbuffer, std::string *text)
 {
-    static std::string inbuffer;
     char buffer[1024];
     while (true)
     {
@@ -140,14 +144,38 @@ bool recvRequest(int sock, std::string *text)
         if(n > 0)
         {
             buffer[n] = 0;
-            inbuffer += buffer;
+            inbuffer += buffer;//追加
             // 分析处理
             auto pos = inbuffer.find(LINE_SEP);
             if(pos == std::string::npos)
                 continue;
-            
+            std::string text_len_string = inbuffer.substr(0, pos);
+            int text_len = std::stoi(text_len_string);
+            int total_len = text_len_string.size() + 2 * LINE_SEP_LEN + text_len;
+            if (inbuffer.size() < total_len )
+                continue;
+
+            std::cout << "处理前#inbuffer: \n" << inbuffer << std::endl;
+
+            //至少有一个完整的报文
+            *text = inbuffer.substr(0, total_len);
+            inbuffer.erase(0, total_len);
+
+            std::cout << "处理后#inbuffer: \n" << inbuffer << std::endl;
+
+            break;
         }
         else
             return false;
+    }
+    return true;
+}
+
+bool recvRequestAll(int sock, std::string &inbuffer, std::vector<std::string> *out)
+{
+    std::string line;
+    while (recvPackage(sock, inbuffer, &line))
+    {
+        out->push_back(line);
     }
 }

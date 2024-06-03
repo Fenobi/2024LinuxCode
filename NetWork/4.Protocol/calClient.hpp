@@ -8,14 +8,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "Protocol.hpp"
 
 #define NUM 1024
 
-class TcpClient
+class CalClient
 {
 public:
-    TcpClient(const std::string& serverip, const uint16_t& serverport)
-        :_sock(-1),_serverip(serverip),_serverport(serverport)
+    CalClient(const std::string &serverip, const uint16_t &serverport)
+        : _sock(-1), _serverip(serverip), _serverport(serverport)
     {}
 
     void initClient()
@@ -30,7 +31,7 @@ public:
         //2.tcp的客户端要不要bind？需要！但不需要显式bind。这个尤其是client，port要让OS确定
         //3.要不要listen？不需要！
         //4.要不要accept？不需要！
-        //5.要什么？要发起链接！(connect)
+        //5.要什么？要发起链接！(connect) 
 
     }
 
@@ -48,31 +49,38 @@ public:
         }
         else
         {
-            std::string msg;
+            std::string line;
+            std::string inbuffer;
             while (true)
             {
-                std::cout << "Enter: ";
-                std::getline(std::cin, msg);
-                write(_sock, msg.c_str(), msg.size());
+                std::cout << "mycal>>> ";
+                std::getline(std::cin, line);
+                Request req(10, 10, '+');
+               // Request req = ParseLine(line);
+                std::string content;
+                req.serialize(&content);
+                std::string send_string = enLength(content);
+                send(_sock, send_string.c_str(), send_string.size(), 0);
 
-                char buffer[NUM];
-                int n = read(_sock, buffer, sizeof(buffer) - 1);
-                if (n > 0)
-                {
-                    //目前我们把读到的数据当成字符串
-                    buffer[n] = 0;
-                    std::cout << "Server回显# " << buffer << std::endl;
-
-                }
-                else
-                {
-                    break;
-                }
+                std::string package, text;
+                if (!recvPackage(_sock, inbuffer, &package)) 
+                    continue;
+                if(!deLength(package,&text))
+                    continue;
+                Response resp;
+                resp.deserialize(text);
+                std::cout << "eixtCode: " << resp._exitcode << std::endl;
+                std::cout << "result: " << resp._result << std::endl;
+                 
             }
         }
     }
-
-    ~TcpClient()
+    void ParseLine(const std::string &line)
+    {
+        //"1+1" "123*456" "12/0"
+        
+    }
+    ~CalClient()
     {
         if (_sock >= 0) close(0);
     }
