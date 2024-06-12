@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <vector>
+#include <jsoncpp/json/json.h>
 
 #define SEP " "
 #define SEP_LEN strlen(SEP)
@@ -41,6 +42,10 @@ bool deLength(const std::string &package,std::string *text)
     return true;
 }
 
+//如何让系统知道我们用的是哪个协议呢？
+//"content_len"\r\n"协议编号"\r\n"x op y"\r\n
+
+
 class Request
 {
 public:
@@ -50,6 +55,7 @@ public:
     {}
     bool serialize(std::string *out)
     {
+#ifdef MYSELF
         *out = " ";
         // 结构化 ->"x op y"
         std::string x_string = std::to_string(_x);
@@ -60,10 +66,21 @@ public:
         *out += _op;
         *out += SEP;
         *out += y_string;
+#else//用现成的
+        Json::Value root;
+        root["first"] = _x;
+        root["second"] = _y;
+        root["oper"] = _op;
+
+        Json::FastWriter writer;
+        // Json::StyledWriter writer;
+        *out = writer.write(root);
+#endif
         return true;
     }
     bool deserialize(const std::string &in)
     {
+#ifdef MYSELF       
         auto left = in.find(SEP);
         auto right = in.rfind(SEP);
 
@@ -80,7 +97,15 @@ public:
         _x = std::stoi(x_string);
         _y = std::stoi(y_string);
         _op = in[left + SEP_LEN];
+#else
+        Json::Value root;
+        Json::Reader reader;
+        reader.parse(in, root);
 
+        _x = root["first"].asInt();
+        _y = root["second"].asInt();
+        _op = root["oper"].asInt();
+#endif
         return true;
     }
 
@@ -102,6 +127,7 @@ public:
     }
     bool serialize(std::string *out)
     {
+#ifdef MYSELF
         *out = "";
         std::string ec_string = std::to_string(_exitcode);
         std::string res_string = std::to_string(_result);
@@ -109,11 +135,20 @@ public:
         *out = ec_string;
         *out += SEP;
         *out += res_string;
+#else
+        Json::Value root;
+        root["exitcode"] = _exitcode;
+        root["result"] = _result;
+
+        Json::FastWriter writer;
+        *out = writer.write(root);
+#endif
         return true;
     }
 
     bool deserialize(const std::string &in)
     {
+#ifdef MYSELF
         auto mid = in.find(SEP);
         if(mid == std::string::npos)
             return false;
@@ -125,7 +160,14 @@ public:
 
         _exitcode = std::stoi(ec_string);
         _result = std::stoi(res_string);
+#else
+        Json::Value root;
+        Json::Reader reader;
+        reader.parse(in, root);
 
+        _exitcode = root["exitcode"].asInt();
+        _result = root["result"].asInt();
+#endif
         return true;
     }
 
