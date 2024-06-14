@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
     }
     uint16_t port = atoi(argv[1]);
 
-    unique_ptr<TcpServer> tsvr(new TcpServer());
+    unique_ptr<CalServer> tsvr(new CalServer());
 
     tsvr->initServer();
     tsvr->start(cal);
