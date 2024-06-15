@@ -67,10 +67,10 @@ namespace server
             }
         }
 
-        void registerCb(std::string servicename,func_t cb)
-        {
-            funcs.insert(std::make_pair(servicename, cb));
-        }
+        // void registerCb(std::string servicename,func_t cb)
+        // {
+        //     funcs.insert(std::make_pair(servicename, cb));
+        // }
 
         void HandlerHttp(int sock)
         {
@@ -132,6 +132,6 @@ namespace server
         int _listensock; // 不是用来数据通信的，它是用来监听链接到来，获取新链接的！
         uint16_t _port;
         func_t _func;
-        std::unordered_map < std::string, func_t > funcs;
+        // std::unordered_map < std::string, func_t > funcs;
     };
 }
