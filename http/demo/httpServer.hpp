@@ -5,6 +5,7 @@
 #include <string>
 #include <string.h>
 #include <signal.h>
+#include <unordered_map>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -14,6 +15,7 @@
 #include <functional>
 
 #include "Protocol.hpp"
+#include "Util.hpp"
 
 namespace server
 {
@@ -34,8 +36,9 @@ namespace server
 
     public:
         httpServer(func_t func, const uint16_t &port = gport)
-            :_func(func),_listensock(-1), _port(port)
-        {}
+            : _func(func), _listensock(-1), _port(port)
+        {
+        }
 
         void initServer()
         {
@@ -64,22 +67,29 @@ namespace server
             }
         }
 
+        void registerCb(std::string servicename,func_t cb)
+        {
+            funcs.insert(std::make_pair(servicename, cb));
+        }
+
         void HandlerHttp(int sock)
         {
-            //1.读到完整的http请求
-            //2.反序列化
-            //3.httprequst,httpresponse,_func(req,resq)
-            //4.resp序列化
-            //5.send
+            // 1.读到完整的http请求
+            // 2.反序列化
+            // 3.httprequst,httpresponse,_func(req,resq)
+            // 4.resp序列化
+            // 5.send
             char buffer[4096];
             httpRequest req;
             httpResponse resp;
             size_t n = recv(sock, buffer, sizeof(buffer) - 1, 0);
-            if(n>0)
+            if (n > 0)
             {
                 buffer[n] = 0;
                 req.inbuffer = buffer;
-                _func(req,resp);
+                req.parse();
+                //funcs[req.path](req, resp);
+                _func(req, resp);
                 send(sock, resp.outbuffer.c_str(), resp.outbuffer.size(), 0);
             }
         }
@@ -104,7 +114,8 @@ namespace server
                 if (id == 0)
                 {
                     close(_listensock);
-                    if (fork() > 0)exit(0);
+                    if (fork() > 0)
+                        exit(0);
                     HandlerHttp(sock);
                     close(sock);
                     exit(0);
@@ -121,5 +132,6 @@ namespace server
         int _listensock; // 不是用来数据通信的，它是用来监听链接到来，获取新链接的！
         uint16_t _port;
         func_t _func;
+        std::unordered_map < std::string, func_t > funcs;
     };
 }
