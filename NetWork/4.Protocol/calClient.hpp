@@ -61,6 +61,7 @@ public:
                 std::string content;
                 req.serialize(&content);
                 std::string send_string = enLength(content);
+                std::cout << "sendstring:\n" << send_string << std::endl;
                 send(_sock, send_string.c_str(), send_string.size(), 0);
 
                 std::string package, text;
@@ -68,6 +69,7 @@ public:
                     continue;
                 if (!deLength(package, &text))
                     continue;
+                
                 Response resp;
                 resp.deserialize(text);
                 std::cout << "eixtCode: " << resp._exitcode << std::endl;
@@ -114,7 +116,7 @@ public:
     ~CalClient()
     {
         if (_sock >= 0)
-            close(0);
+            close(_sock);
     }
 
 private:

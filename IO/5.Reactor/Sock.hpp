@@ -16,24 +16,23 @@
 #include "Log.hpp"
 #include "Err.hpp"
 
-
-static const int gbacklog = 5;
+static const int gbacklog = 32;
 static const int defaultsock = -1;
 
 class Sock
 {
 public:
-    Sock():_listensock(defaultsock)
-    {}
-    int Fd()
+    Sock() : _listensock(defaultsock)
     {
-        return _listensock;
     }
+
     ~Sock()
     {
-        if(_listensock!=defaultsock)
+        if (_listensock != defaultsock)
             close(_listensock);
     }
+
+public:
     void Socket()
     {
         // 1.创建socket套接字
@@ -44,6 +43,9 @@ public:
             exit(SOCKET_ERR);
         }
         logMessage(NORMAL, "create socket success: %d", _listensock);
+
+        int opt = 1;
+        setsockopt(_listensock, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof opt);
     }
 
     void Bind(int port)
@@ -57,7 +59,7 @@ public:
         if (bind(_listensock, (struct sockaddr *)&local, sizeof local) < 0)
         {
             logMessage(FATAL, "bind socket error");
-            exit(SOCKET_ERR);
+            exit(BIND_ERR);
         }
         logMessage(NORMAL, "bind socket success");
     }
@@ -73,26 +75,35 @@ public:
         logMessage(NORMAL, "listen socket success");
     }
 
-    int Accept(std::string *clientip, uint16_t *clientport)
+    int Accept(std::string *clientip, uint16_t *clientport, int *err)
     {
         struct sockaddr_in peer;
         socklen_t len = sizeof peer;
         int sock = accept(_listensock, (struct sockaddr *)&peer, &len);
+        *err = errno;
         if (sock < 0)
         {
-            logMessage(ERROR, "accept error,next");
+            // logMessage(ERROR, "accept error,next");
         }
         else
         {
-            logMessage(NORMAL, "accept a new link success,get new sock: %d", sock);
+            // logMessage(NORMAL, "accept a new link success,get new sock: %d", sock);
             *clientip = inet_ntoa(peer.sin_addr);
             *clientport = ntohs(peer.sin_port);
         }
 
-        int opt = 1;
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof opt);
         return sock;
     }
+    int Fd()
+    {
+        return _listensock;
+    }
+    void Close()
+    {
+        if (_listensock != defaultsock)
+            close(_listensock);
+    }
+
 private:
     int _listensock;
 };

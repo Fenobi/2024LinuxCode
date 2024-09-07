@@ -181,52 +181,31 @@ public:
 };
 
 //"content_len"\r\n "x op y"\r\n
-bool recvPackage(int sock, std::string &inbuffer, std::string *text)
+bool ParsePackage(std::string &inbuffer, std::string *text)
 {
-    char buffer[1024];
-    while (true)
-    {
-        ssize_t n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+    *text = "";
+    // 分析处理
+    auto pos = inbuffer.find(LINE_SEP);
+    if (pos == std::string::npos)
+        return false;
+    std::string text_len_string = inbuffer.substr(0, pos);
+    int text_len = std::stoi(text_len_string);
+    int total_len = text_len_string.size() + 2 * LINE_SEP_LEN + text_len;
 
-        if (n > 0)
-        {
-            buffer[n] = 0;
-            inbuffer += buffer; // 追加
-            // 分析处理
-            auto pos = inbuffer.find(LINE_SEP);
-            if (pos == std::string::npos)
-                continue;
-            std::string text_len_string = inbuffer.substr(0, pos);
-            int text_len = std::stoi(text_len_string);
-            int total_len = text_len_string.size() + 2 * LINE_SEP_LEN + text_len;
-            std::cout << "处理前#inbuffer: \n"
-                      << inbuffer << std::endl;
-            std::cout << text_len << std::endl;
+    if (inbuffer.size() < total_len)
+        return false;
 
-            if (inbuffer.size() < total_len)
-            {
-                std::cout << "你输入的消息，没有严格遵守我们的协议，正在等待后续的内容, continue" << std::endl;
-                continue;
-            }
-            // 至少有一个完整的报文
-            *text = inbuffer.substr(0, total_len);
-            inbuffer.erase(0, total_len);
+    // 至少有一个完整的报文
+    *text = inbuffer.substr(0, total_len);
+    inbuffer.erase(0, total_len);
 
-            std::cout << "处理后#inbuffer: \n"
-                      << inbuffer << std::endl;
-
-            break;
-        }
-        else
-            return false;
-    }
     return true;
 }
 
 bool recvRequestAll(int sock, std::string &inbuffer, std::vector<std::string> *out)
 {
     std::string line;
-    while (recvPackage(sock, inbuffer, &line))
+    while (ParsePackage(inbuffer, &line))
     {
         out->push_back(line);
     }

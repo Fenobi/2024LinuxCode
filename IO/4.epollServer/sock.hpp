@@ -78,8 +78,6 @@ public:
             *clientport = ntohs(peer.sin_port);
         }
 
-        int opt = 1;
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof opt);
         return sock;
     }
 };

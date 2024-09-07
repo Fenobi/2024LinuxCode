@@ -15,25 +15,28 @@ static const int size = 128;
 class Epoller
 {
 public:
-    Epoller():epfd_(defaultepfd)
-    {}
-    
+    Epoller() : epfd_(defaultepfd)
+    {
+    }
+
     ~Epoller()
     {
-        if(epfd_!=defaultepfd)
+        if (epfd_ != defaultepfd)
             close(epfd_);
     }
+
 public:
     void Create()
     {
         epfd_ = epoll_create(size);
-        if(epfd_<0)
+        if (epfd_ < 0)
         {
             logMessage(FATAL, "epoll_create error code: %d, errstring: %s", errno, strerror(errno));
+            exit(EPOLL_CREATE_ERR);
         }
     }
 
-    bool AddEvent(int sock,uint32_t events)
+    bool AddEvent(int sock, uint32_t events)
     {
         struct epoll_event ev;
         ev.events = events;
@@ -43,9 +46,35 @@ public:
         return n == 0;
     }
 
-    int wait()
+    int Wait(struct epoll_event revs[], int num, int timeout)
     {
-        return 0;
+        int n = epoll_wait(epfd_, revs, num, timeout);
+        return n;
+    }
+
+    bool Control(int sock,uint32_t event, int action)
+    {
+        int n = 0;
+        if (action == EPOLL_CTL_MOD)
+        {
+            struct epoll_event ev;
+            ev.events = event;
+            ev.data.fd=sock;
+            n = epoll_ctl(epfd_, action, sock, &ev);
+        }
+        else if(action == EPOLL_CTL_DEL)
+        {
+            n= epoll_ctl(epfd_, action, sock, nullptr);
+        }
+        else
+            n = -1;
+        return n == 0;
+    }
+
+    void Close()
+    {
+        if (epfd_ != defaultepfd)
+            close(epfd_);
     }
 
 private:
